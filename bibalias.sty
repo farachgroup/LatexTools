@@ -1,0 +1,56 @@
+%%
+%% This is file `bibalias.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% bibalias.dtx  (with options: `bibalias')
+%% This is a generated file. Changed to this file might be overwritten.
+%% 
+%% This file is part of the bibalias package.
+%% The bibalias package has the maintenance status:  author-maintained
+%% Current maintainer is  Ulrich M. Schwarz (ulmi@absatzen.de)
+%% (c)  2009   Ulrich M. Schwarz (ulmi@absatzen.de)
+%% Your rights to use, modify and distribute this work are governed by the
+%%  LaTeX Project Public License (LPPL), version 1.3a
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{bibalias}[2009/06/28 v0.2 Multiple keys for one cite (ums)]
+\newcommand\bibalias[2]{%
+  \@namedef{bibali@#1}{#2}%
+}
+\let\biba@orig@cite=\cite
+\newtoks\biba@toks
+\def\biba@replace#1{%
+  \@ifundefined{bibali@#1}{%
+    #1%
+  }{%
+    \biba@replace{\csname bibali@#1\endcsname}%
+  }%
+}%
+\newcommand\acite[2][]{%
+  \biba@toks{\biba@orig@cite#1}%
+  \def\biba@comma{}%
+  \def\biba@all{}%
+  \@for\biba@one:=#2\do{%
+    \edef\biba@new{\biba@replace{\biba@one}}%
+    \ifx\biba@new\biba@one\else
+      \PackageInfo{bibalias}{%
+        Replacing citation `\biba@one' with `\biba@new'
+      }%
+    \fi
+    \edef\biba@all{\biba@all\biba@comma\biba@new}%
+    \def\biba@comma{,}%
+  }%
+  \edef\biba@tmp{\the\biba@toks{\biba@all}}%
+  \biba@tmp
+}
+  \DeclareOption{overload}{%
+    \PackageWarningNoLine{bibalias}{Redefining \string\cite}%
+    \def\cite#1#{\acite[{#1}]}}
+\InputIfFileExists{\jobname.bal}{}{%
+  \PackageWarningNoLine{bibalias}{There's no central alias file \jobname.bal?}%
+}%
+\ProcessOptions\relax
+\endinput
+%%
+%% End of file `bibalias.sty'.

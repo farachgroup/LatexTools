@@ -1,0 +1,393 @@
+%% This is file `typechecklabels.sty',
+%%
+%%    Package `typechecklabels' for use with LaTeX2e
+%%    Copyright (C) 2017 Rob Johnson (email `robj@vmware.com').
+%%    All rights reserved.  You may not alter the contents of this file unless
+%%    you also change its name. Please make a bona fide attempt to submit
+%%    patches to me before changing the name of this file.
+
+\def\packagedate{2017/07/20}
+\def\packageversion{0.1}
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{typechecklabels}[\packagedate\space v\packageversion\space Emit warnings or errors when labels have prefixes/suffixes that do not match their cleveref types]
+
+%\RequirePackage{sphack}
+\RequirePackage{cleveref}
+\RequirePackage{pgfkeys}
+\RequirePackage{pgfopts}
+\RequirePackage{xstring}
+\RequirePackage{xifthen}
+
+%%%%  Options
+% missingTypeString={ignore,warn,error}
+%      What to do when a label does not contain a typeString
+
+% unrecognizedTypeString={ignore,warn,error}
+%      What to do when a label contains a type string, but we don't
+%      know what it means
+
+% noncanonicalTypeString={ignore,warn,error}
+%      What to do when a label contains a type string and we recognize
+%      it, but it is not the canonical typeString for that type
+
+% wrongTypeString={ignore,warn,error}
+%      What to do when a type string in a label does not match the
+%      LaTeX type for that label
+
+% typeStringPosition={left,right}
+%      Whether type strings go on the left or right end of a label
+
+% typeStringDelimiter=<character>    (default is ``:'')
+
+% typeMapping={standard,strict}
+%      Controls how LaTeX types are mapped to label types
+%      (e.g. whether sections and subsections are considered to be the
+%      same type)
+
+% unknownType={ignore, warn, error}
+%      What to do when we encounter a label whose LaTeX type we don't
+%      recognize
+
+\def\tclabel@missingTypeString{warn}
+\def\tclabel@unrecognizedTypeString{warn}
+\def\tclabel@noncanonicalTypeString{warn}
+\def\tclabel@wrongTypeString{error}
+\def\tclabel@typeMapping{standard}
+\def\tclabel@typeStringPosition{left}
+\def\tclabel@typeStringDelimiter{:}
+\def\tclabel@unknownType{warn}
+
+\pgfkeys{
+  /tclabel/options/.cd,
+  missingTypeString/.store in=\tclabel@missingTypeString,
+  unrecognizedTypeString/.store in=\tclabel@invalidTypeString,
+  noncanonicalTypeString/.store in=\tclabel@unfixableTypeString,
+  wrongTypeString/.store in=\tclabel@wrongTypeString,
+  typeMapping/.store in=\tclabel@typeMapping,
+  typeStringPosition/.store in=\tclabel@typeStringPosition,
+  typeStringDelimiter/.store in=\tclabel@typeStringDelimiter,
+  unknownType/.store in=\tclabel@unknownType
+}
+
+\ProcessPgfOptions{/tclabel/options}
+
+%%%% User Commands
+% \tclabelDeclareTypeStringForType{type}{typeString}
+% \tclabelDeclareTypeStringFix{string}{fixedString}
+
+\newcommand{\tclabelDeclareTypeStringForType}[2]{
+  \def\key{/tclabel/stringForType/\tclabel@typeMapping/#1}
+  \pgfkeyssetvalue{\key}{#2}
+}
+
+\newcommand{\tclabelDeclareTypeStringFix}[2]{
+  \def\key{/tclabel/stringFix/#1}
+  \pgfkeyssetvalue{\key}{#2}
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Internals
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%% Intercept each new environment and record the type that each
+%%%% label created in that environment will have.
+%% \def\tclabel@currentlabeltype{}%
+%% \let\tclabel@old@refstepcounter\refstepcounter%
+%% \def\refstepcounter{%
+%%   \@ifnextchar[{\tclrefstepcounter@optarg}{\tclrefstepcounter@noarg}%]
+%% }%
+%% \def\tclrefstepcounter@noarg#1{%
+%%   \tclabel@old@refstepcounter{#1}%
+%%   \protected@edef\tclabel@currentlabeltype{#1}%
+%% }%
+%% \def\tclrefstepcounter@optarg[#1]#2{%
+%%   \tclabel@old@refstepcounter{#2}%
+%%   \protected@edef\tclabel@currentlabeltype{#1}%
+%% }%
+
+\AtBeginDocument{
+  \let\tclabel@old@label\label%
+  \def\label#1{%
+    \@bsphack%
+    \tclabel@old@label{#1}%
+    %% \typechecklabel{#1}{\tclabel@currentlabeltype}%
+    \StrBetween{\cref@currentlabel}{[}{]}[\crefType]
+    \typechecklabel{#1}{\crefType}%
+    %% \protected@write\@auxout{}%
+    %%                         {\string\typechecklabel{#1}{\crefType}}%
+    \@esphack%
+  }%
+}
+%% \let\tclabel@old@makefntext\@makefntext%
+%% \long\def\@makefntext{%
+%%   \protected@edef\tclabel@currentlabeltype{footnote}%
+%%   \tclabel@old@makefntext}%
+
+%% \@ifundefined{appendix}{}{%
+%%   \g@addto@macro\appendix{%
+%%     \@ifundefined{chapter}{%
+%%       \gdef\refstepcounter@noarg#1{%
+%%         \tclabel@old@refstepcounter{#1}%
+%%         \StrSubstitute{#1}{section}{appendix}[\appendified]
+%%         \protected@edef\tclabel@currentlabeltype{\appendified}%
+%%       }%
+%%     }{%
+%%       \gdef\refstepcounter@noarg#1{%
+%%         \tclabel@old@refstepcounter{#1}%
+%%         \StrSubstitute{#1}{chapter}{appendix}[\appendified]
+%%         \protected@edef\tclabel@currentlabeltype{\appendified}%
+%%       }%
+%%     }%
+%%   }%
+%% }%
+
+%% \@ifpackageloaded{hyperref}{%
+%%   \@ifpackagewith{hyperref}{implicit=false}{}{%
+%%     \PackageInfo{typechecklabels}{`hyperref' support loaded}%
+%%     \let\tclabel@old@H@refstepcounter\H@refstepcounter%
+%%     \def\H@refstepcounter#1{%
+%%       \tclabel@old@H@refstepcounter{#1}%
+%%       \protected@edef\tclabel@currentlabeltype{#1}%
+%%     }%
+%%     \let\refstepcounter@noarg\tclabel@old@refstepcounter%
+%%     \def\refstepcounter@optarg[#1]#2{%
+%%       \tclabel@old@refstepcounter{#2}%
+%%       \protected@edef\tclabel@currentlabeltype{#1}%
+%%     }%
+%%     \@ifundefined{appendix}{}{%
+%%       \g@addto@macro\appendix{%
+%%         \@ifundefined{chapter}{%
+%%           \gdef\H@refstepcounter@noarg#1{%
+%%             \tclabel@old@H@refstepcounter{#1}%
+%%             \StrSubstitute{#1}{section}{appendix}[\appendified]
+%%             \protected@edef\tclabel@currentlabeltype{\appendified}%
+%%           }%
+%%         }{%
+%%           \gdef\H@refstepcounter@noarg#1{%
+%%             \tclabel@old@H@refstepcounter{#1}%
+%%             \StrSubstitute{#1}{chapter}{appendix}[\appendified]
+%%             \protected@edef\tclabel@currentlabeltype{\appendified}%
+%%           }%
+%%         }%
+%%       }%
+%%     }%
+%%   }%
+%% }%
+
+% The standard strings for standard types
+\pgfkeys{
+  /tclabel/stringForType/standard/equation/.initial=eqn,
+  /tclabel/stringForType/standard/figure/.initial=fig,
+  /tclabel/stringForType/standard/subfigure/.initial=fig,
+  /tclabel/stringForType/standard/table/.initial=tab,
+  /tclabel/stringForType/standard/subtable/.initial=tab,
+  /tclabel/stringForType/standard/page/.initial=pag,
+  /tclabel/stringForType/standard/part/.initial=sec,
+  /tclabel/stringForType/standard/chapter/.initial=sec,
+  /tclabel/stringForType/standard/section/.initial=sec,
+  /tclabel/stringForType/standard/subsection/.initial=sec,
+  /tclabel/stringForType/standard/subsubsection/.initial=sec,
+  /tclabel/stringForType/standard/appendix/.initial=sec,
+  /tclabel/stringForType/standard/subappendix/.initial=sec,
+  /tclabel/stringForType/standard/subsubappendix/.initial=sec,
+  /tclabel/stringForType/standard/subsubsubappendix/.initial=sec,
+  /tclabel/stringForType/standard/enumi/.initial=itm,
+  /tclabel/stringForType/standard/enumii/.initial=itm,
+  /tclabel/stringForType/standard/enumiii/.initial=itm,
+  /tclabel/stringForType/standard/enumiv/.initial=itm,
+  /tclabel/stringForType/standard/enumv/.initial=itm,
+  /tclabel/stringForType/standard/footnote/.initial=foot,
+  /tclabel/stringForType/standard/theorem/.initial=thm,
+  /tclabel/stringForType/standard/lemma/.initial=thm,
+  /tclabel/stringForType/standard/corollary/.initial=thm,
+  /tclabel/stringForType/standard/proposition/.initial=thm,
+  /tclabel/stringForType/standard/definition/.initial=thm,
+  /tclabel/stringForType/standard/result/.initial=thm,
+  /tclabel/stringForType/standard/example/.initial=thm,
+  /tclabel/stringForType/standard/remark/.initial=thm,
+  /tclabel/stringForType/standard/note/.initial=thm,
+  /tclabel/stringForType/standard/algorithm/.initial=alg,
+  /tclabel/stringForType/standard/listing/.initial=alg,
+  /tclabel/stringForType/standard/line/.initial=lin
+}
+
+% The strict strings for standard types
+\pgfkeys{
+  /tclabel/stringForType/strict/equation/.initial=eqn,
+  /tclabel/stringForType/strict/figure/.initial=fig,
+  /tclabel/stringForType/strict/subfigure/.initial=subfig,
+  /tclabel/stringForType/strict/table/.initial=tab,
+  /tclabel/stringForType/strict/subtable/.initial=subtab,
+  /tclabel/stringForType/strict/page/.initial=pag,
+  /tclabel/stringForType/strict/part/.initial=part,
+  /tclabel/stringForType/strict/chapter/.initial=chap,
+  /tclabel/stringForType/strict/section/.initial=sec,
+  /tclabel/stringForType/strict/subsection/.initial=subsec,
+  /tclabel/stringForType/strict/subsubsection/.initial=subsubsec,
+  /tclabel/stringForType/strict/appendix/.initial=app,
+  /tclabel/stringForType/strict/subappendix/.initial=subapp,
+  /tclabel/stringForType/strict/subsubappendix/.initial=subsubapp,
+  /tclabel/stringForType/strict/subsubsubappendix/.initial=subsubsubapp,
+  /tclabel/stringForType/strict/enumi/.initial=itmi,
+  /tclabel/stringForType/strict/enumii/.initial=itmii,
+  /tclabel/stringForType/strict/enumiii/.initial=itmiii,
+  /tclabel/stringForType/strict/enumiv/.initial=itmiv,
+  /tclabel/stringForType/strict/enumv/.initial=itmv,
+  /tclabel/stringForType/strict/footnote/.initial=foot,
+  /tclabel/stringForType/strict/theorem/.initial=thm,
+  /tclabel/stringForType/strict/lemma/.initial=lem,
+  /tclabel/stringForType/strict/corollary/.initial=cor,
+  /tclabel/stringForType/strict/proposition/.initial=prop,
+  /tclabel/stringForType/strict/definition/.initial=def,
+  /tclabel/stringForType/strict/result/.initial=res,
+  /tclabel/stringForType/strict/example/.initial=exm,
+  /tclabel/stringForType/strict/remark/.initial=rem,
+  /tclabel/stringForType/strict/note/.initial=note,
+  /tclabel/stringForType/strict/algorithm/.initial=alg,
+  /tclabel/stringForType/strict/listing/.initial=list,
+  /tclabel/stringForType/strict/line/.initial=lin
+}
+
+% Fixes for strings
+\pgfkeys{
+  /tclabel/stringFix/eqn/.initial=eqn,
+  /tclabel/stringFix/eq/.initial=eqn,
+  /tclabel/stringFix/fig/.initial=fig,
+  /tclabel/stringFix/subfig/.initial=fig,
+  /tclabel/stringFix/tab/.initial=tab,
+  /tclabel/stringFix/tbl/.initial=tab,
+  /tclabel/stringFix/tb/.initial=tab,
+  /tclabel/stringFix/subtbl/.initial=tab,
+  /tclabel/stringFix/subtab/.initial=tab,
+  /tclabel/stringFix/pag/.initial=pag,
+  /tclabel/stringFix/pg/.initial=pag,
+  /tclabel/stringFix/part/.initial=part,
+  /tclabel/stringFix/par/.initial=part,
+  /tclabel/stringFix/chap/.initial=sec,
+  /tclabel/stringFix/sec/.initial=sec,
+  /tclabel/stringFix/subsec/.initial=sec,
+  /tclabel/stringFix/subsubsec/.initial=sec,
+  /tclabel/stringFix/app/.initial=sec,
+  /tclabel/stringFix/subapp/.initial=sec,
+  /tclabel/stringFix/subsubapp/.initial=sec,
+  /tclabel/stringFix/subsubsubapp/.initial=sec,
+  /tclabel/stringFix/enumi/.initial=itm,
+  /tclabel/stringFix/enumii/.initial=itm,
+  /tclabel/stringFix/enumiii/.initial=itm,
+  /tclabel/stringFix/enumiv/.initial=itm,
+  /tclabel/stringFix/enumv/.initial=itm,
+  /tclabel/stringFix/itmi/.initial=itm,
+  /tclabel/stringFix/itmii/.initial=itm,
+  /tclabel/stringFix/itmiii/.initial=itm,
+  /tclabel/stringFix/itmiv/.initial=itm,
+  /tclabel/stringFix/itmv/.initial=itm,
+  /tclabel/stringFix/foot/.initial=foot,
+  /tclabel/stringFix/thm/.initial=thm,
+  /tclabel/stringFix/lem/.initial=thm,
+  /tclabel/stringFix/cor/.initial=thm,
+  /tclabel/stringFix/prop/.initial=thm,
+  /tclabel/stringFix/def/.initial=thm,
+  /tclabel/stringFix/defn/.initial=thm,
+  /tclabel/stringFix/res/.initial=thm,
+  /tclabel/stringFix/ex/.initial=thm,
+  /tclabel/stringFix/exm/.initial=thm,
+  /tclabel/stringFix/rem/.initial=thm,
+  /tclabel/stringFix/not/.initial=thm,
+  /tclabel/stringFix/note/.initial=thm,
+  /tclabel/stringFix/alg/.initial=alg,
+  /tclabel/stringFix/list/.initial=thm,
+  /tclabel/stringFix/lis/.initial=thm,
+  /tclabel/stringFix/lin/.initial=lin
+  /tclabel/stringFix/line/.initial=lin
+}
+
+% args: label
+\newcommand{\parseTypeStringFromLabel}[1]{%
+  \IfStrEqCase{\tclabel@typeStringPosition}{%
+    {left}{\StrBefore{#1}{\tclabel@typeStringDelimiter}[\labelsTypeString]}%
+    {right}{\StrBehind[\StrCount{#1}{\tclabel@typeStringDelimiter}]{#1}%
+      {\tclabel@typeStringDelimiter}[\labelsTypeString]}%
+  }%
+}
+
+% args: label
+\newcommand\handleMissingTypeString[1]{%
+  \IfStrEqCase{\tclabel@missingTypeString}{%
+              {ignore}{}%
+              {warn}{\PackageWarning{typechecklabels}%
+                {Missing type string in label '#1'}}%
+              {error}{\PackageError{typechecklabels}%
+                {Missing type string in label '#1'}%
+                {}}}%
+}
+
+% args: label
+\newcommand{\handleUnrecognizedTypeString}[1]{%
+  \IfStrEqCase{\tclabel@unrecognizedTypeString}{%
+              {ignore}{}%
+              {warn}{\PackageWarning{typechecklabels}%
+                {Unrecognized type string in label '#1'}}%
+              {error}{\PackageError{typechecklabels}%
+                {Unrecognized type string in label '#1'}%
+                {}}}%  
+}
+
+% args: label labelsTypeString fixedLabelsTypeString
+\newcommand{\handleNoncanonicalTypeString}[3]{%
+  \IfStrEqCase{\tclabel@noncanonicalTypeString}{%
+              {ignore}{}%
+              {warn}{\PackageWarning{typechecklabels}%
+                {Noncanonical type string in label '#1' %
+                  (the canonical type string for '#2' is configured to '#3')}}%
+              {error}{\PackageError{typechecklabels}%
+                {Noncanonical type string in label '#1' %
+                  (the canonical type string for '#2' is configured to '#3')}%
+                {}}}%  
+}
+
+% args: type
+\newcommand{\handleUnknownType}[1]{%
+  \IfStrEqCase{\tclabel@unknownType}{%
+              {ignore}{}%
+              {warn}{\PackageWarning{typechecklabels}%
+                {Unknown type '#1'. }}%
+              {error}{\PackageError{typechecklabels}%
+                {Unknown type '#1'}%
+                {You can declare this type using \textbackslash{tclabelDeclareTypeStringForType}}}}%
+}
+
+% args: label typeTypeString
+\newcommand{\handleWrongTypeString}[2]{%
+  \IfStrEqCase{\tclabel@wrongTypeString}{%
+              {ignore}{}%
+              {warn}{\PackageWarning{typechecklabels}%
+                {Wrong type string in label '#1' (should be #2)}}%
+              {error}{\PackageError{typechecklabels}%
+                {Wrong type string in label '#1' (should be #2)}%
+                {}}}%  
+}
+
+
+% args: label type
+\newcommand{\typechecklabel}[2]{%
+  \parseTypeStringFromLabel{#1}%
+  \pgfkeysgetvalue{/tclabel/stringFix/\labelsTypeString}{\fixedLabelsTypeString}%
+  \pgfkeysgetvalue{/tclabel/stringForType/\tclabel@typeMapping/#2}{\typesTypeString}%
+  \ifthenelse{\equal{\labelsTypeString}{}}%
+             {\handleMissingTypeString{#1}}%
+             {\ifthenelse{\isequivalentto{\fixedLabelsTypeString}{\relax}}%
+               {\handleUnrecognizedTypeString{#1}}%
+               {\ifthenelse{\NOT\equal{\labelsTypeString}{\fixedLabelsTypeString}}%
+                 {\handleNoncanonicalTypeString{#1}{\labelsTypeString}{\fixedLabelsTypeString}}%
+                 {\ifthenelse{\isequivalentto{\typesTypeString}{\relax}}%
+                   {\handleUnknownType{#2}}%
+                   {\ifthenelse{\NOT\equal{\fixedLabelsTypeString}{\typesTypeString}}%
+                     {\handleWrongTypeString{#1}{\typesTypeString}}%
+                     {}%
+                   }%
+                 }%
+               }%
+             }% 
+}
