@@ -20,6 +20,10 @@
 \RequirePackage{xifthen}
 
 %%%%  Options
+
+% strict
+%      Sets all the below options to ``error'', and the type mapping to ``strict''
+
 % missingTypeString={ignore,warn,error}
 %      What to do when a label does not contain a typeString
 
@@ -58,8 +62,18 @@
 \def\tclabel@typeStringDelimiter{:}
 \def\tclabel@unknownType{warn}
 
+\newcommand{\strict}{
+  \def\tclabel@missingTypeString{error}
+  \def\tclabel@unrecognizedTypeString{error}
+  \def\tclabel@noncanonicalTypeString{error}
+  \def\tclabel@wrongTypeString{error}
+  \def\tclabel@unknownType{error}
+\def\tclabel@typeMapping{strict}
+}
+
 \pgfkeys{
   /tclabel/options/.cd,
+  strict/.code=\strict{},
   missingTypeString/.store in=\tclabel@missingTypeString,
   unrecognizedTypeString/.store in=\tclabel@invalidTypeString,
   noncanonicalTypeString/.store in=\tclabel@unfixableTypeString,
@@ -71,6 +85,7 @@
 }
 
 \ProcessPgfOptions{/tclabel/options}
+
 
 %%%% User Commands
 % \tclabelDeclareTypeStringForType{type}{typeString}
